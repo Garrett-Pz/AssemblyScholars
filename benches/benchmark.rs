@@ -264,9 +264,71 @@ pub fn bench_removal_orders(c: &mut Criterion) {
     bench_group.finish();
 }
 
+/// Benchmark the search step of [`index_search`] using the fastest options (i.e., the default
+/// options).
+pub fn bench_performance(c: &mut Criterion) {
+    let mut bench_group = c.benchmark_group("bench_performance");
+
+    // Define datasets.
+    let datasets = [
+        "checks",
+        "gdb13_1201",
+        "gdb17_200",
+        "coconut_55",
+        "coconut_220",
+        "watermelon/natural-products",
+        "watermelon/peptides",
+        "watermelon/rings",
+        "acyclic_hydrocarbons",
+        // "polycyclic_hydrocarbons",
+    ];
+
+    // Run the benchmark for each dataset.
+    for dataset in &datasets {
+        let mol_list = load_dataset_molecules(dataset);
+        bench_group.bench_with_input(
+            BenchmarkId::from_parameter(dataset),
+            &mol_list,
+            |b, mol_list| {
+                b.iter_custom(|iters| {
+                    let mut total_time = Duration::new(0, 0);
+                    for mol in mol_list {
+                        // Precompute the molecule's matches and setup.
+                        let matches = Matches::new(mol, CanonizeMode::TreeNauty);
+                        let state = State::new(mol);
+                        let edge_count = mol.graph().edge_count();
+
+                        // Benchmark the search phase.
+                        for _ in 0..iters {
+                            let mut cache =
+                                Cache::new(MemoizeMode::CanonIndex, CanonizeMode::TreeNauty);
+                            let best_index = Arc::new(AtomicUsize::from(edge_count - 1));
+                            let start = Instant::now();
+                            recurse_index_search(
+                                mol,
+                                &matches,
+                                &state,
+                                best_index,
+                                &[Bound::Int, Bound::MatchableEdges],
+                                &mut cache,
+                                ParallelMode::DepthOne,
+                                None,
+                            );
+                            total_time += start.elapsed();
+                        }
+                    }
+                    total_time
+                });
+            },
+        );
+    }
+
+    bench_group.finish();
+}
+
 criterion_group! {
     name = benchmark;
     config = Criterion::default().sample_size(20);
-    targets = bench_matches, bench_bounds, bench_memoize, bench_removal_orders
+    targets = bench_matches, bench_bounds, bench_memoize, bench_removal_orders, bench_performance
 }
 criterion_main!(benchmark);
