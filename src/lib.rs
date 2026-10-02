@@ -55,6 +55,8 @@ pub mod memoize;
 mod nauty;
 pub mod pathway;
 pub mod state;
+//EDIT: add eviction
+pub mod eviction;
 mod vf3;
 
 // Python wrapper.

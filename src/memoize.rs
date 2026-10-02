@@ -1,7 +1,7 @@
 //! Memoize assembly states to avoid redundant recursive search.
 
 use std::sync::{
-    atomic::{AtomicUsize, Ordering::Relaxed},
+    atomic::{AtomicUsize, AtomicBool, Ordering::{Relaxed, Acquire, Release}},
     Arc,
 };
 
@@ -13,6 +13,7 @@ use crate::{
     canonize::{canonize, CanonizeMode, Labeling},
     molecule::Molecule,
     state::State,
+    eviction::{evict, CACHE_LIMIT, USE_THRESHOLD},
 };
 
 /// Strategy for memoizing assembly states in the search phase.
@@ -34,8 +35,9 @@ pub struct Cache {
     canonize_mode: CanonizeMode,
     /// A parallel-aware cache mapping keys (lists of usize canonical IDs) to
     /// their assembly index upper bounds and match removal order.
+    //EDIT: add usage count to cache value
     #[allow(clippy::type_complexity)]
-    cache: Arc<DashMap<Vec<usize>, (usize, Vec<usize>)>>,
+    cache: Arc<DashMap<Vec<usize>, (usize, Vec<usize>, u32)>>,
     /// A parallel-aware map from canonical labelings to canonical IDs. Lists
     /// of these IDs are used as memoization cache keys since usizes are much
     /// faster to hash than canonical labelings.
@@ -46,6 +48,12 @@ pub struct Cache {
     /// A parallel-aware counter for assigning a unique ID to the next unique
     /// canonical labeling seen.
     next_id: Arc<AtomicUsize>,
+
+    //EDIT: size tracking
+    size: Arc<AtomicUsize>,
+
+    //EDIT: eviction tracking
+    is_evicting: Arc<AtomicBool>,
 }
 
 impl Cache {
@@ -54,10 +62,12 @@ impl Cache {
         Self {
             memoize_mode,
             canonize_mode,
-            cache: Arc::new(DashMap::<Vec<usize>, (usize, Vec<usize>)>::new()),
+            cache: Arc::new(DashMap::<Vec<usize>, (usize, Vec<usize>, u32)>::new()),
             labeling_to_id: Arc::new(DashMap::<Labeling, usize>::new()),
             fragment_to_id: Arc::new(DashMap::<BitSet, usize>::new()),
             next_id: Arc::new(AtomicUsize::from(0)),
+            size: Arc::new(AtomicUsize::new(0)), //size-initialization
+            is_evicting: Arc::new(AtomicBool::new(false)), //eviction-initialization
         }
     }
 
@@ -110,6 +120,18 @@ impl Cache {
 
         // If memoization is enabled, get this assembly state's cache key.
         if let Some(cache_key) = self.key(mol, state) {
+            //EDIT: check cache bounds first
+            //if !self.cache.contains_key(&cache_key) && should_evict(&self.cache, CACHE_LIMIT) {
+            //    evict(&self.cache, USE_THRESHOLD);
+            //}
+            let current_size = self.size.load(Relaxed);
+            if !self.cache.contains_key(&cache_key) && current_size >= CACHE_LIMIT {
+                if self.is_evicting.compare_exchange(false, true, Acquire, Relaxed).is_ok() {
+                    evict(&self.cache, USE_THRESHOLD, &self.size);
+                    self.is_evicting.store(false, Release);
+                }
+            }
+
             // Do all of the following atomically: Access the cache entry. If
             // the cached entry has a worse index upper bound or later removal
             // order than this state, or if it does not exist, then cache this
@@ -121,13 +143,27 @@ impl Cache {
                     if val.0 > state_index || val.1 > *removal_order {
                         val.0 = state_index;
                         val.1 = removal_order.clone();
+                        val.2 = 1; //EDIT
                     } else {
+                        val.2 += 1; //EDIT
                         result = true;
                     }
                 })
-                .or_insert((state_index, removal_order.clone()));
+                .or_insert_with(|| {
+                    self.size.fetch_add(1, Relaxed); //EDIT
+                    (state_index, removal_order.clone(), 1)}); //EDIT
         }
 
         result
+    }
+
+    //just print the cache for debugging
+    pub fn print_cache(&self) {
+        let mut usage_counts: Vec<u32> = self.cache.iter().map(|entry| entry.2).collect();
+        usage_counts.sort_unstable();
+        println!("====================================");
+        println!("Cache size: {}", self.cache.len());
+        println!("Cache usage counts: {:?}", usage_counts);
+        println!("====================================");
     }
 }
