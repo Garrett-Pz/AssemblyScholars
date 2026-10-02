@@ -14,3 +14,16 @@ pub fn evict(cache: &DashMap<Vec<usize>, (usize, Vec<usize>, u32)>, threshold: u
 
     size.store(cache.len(), Relaxed);
 }
+
+fn evict_lru(cache: &DashMap<Vec<usize>, (usize, Vec<usize>, u32)>, removecount: usize) {
+    //make a vec of the cache's use times
+    let mut counts : Vec<u32> = cache
+        .iter()
+        .map(|e| e.value().2)
+        .collect();
+    //get the item that would be at the REMOVE_ITEM position, 
+    let (_, &mut cutoff, _) = counts.select_nth_unstable(removecount-1);
+    //might be better way to do these last 2 lines ^expensive
+    //and retain all items that are used after the cutoff
+    cache.retain(|_key, value| value.2 > cutoff);
+}
