@@ -2,6 +2,7 @@ use dashmap::DashMap;
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 pub const CACHE_LIMIT: usize = 1_000_000;
+pub const REMOVE_SIZE: usize = 10_000;
 pub const USE_THRESHOLD: u32 = 2;
 
 pub fn evict(cache: &DashMap<Vec<usize>, (usize, Vec<usize>, u32)>, threshold: u32,
@@ -15,7 +16,7 @@ pub fn evict(cache: &DashMap<Vec<usize>, (usize, Vec<usize>, u32)>, threshold: u
     size.store(cache.len(), Relaxed);
 }
 
-fn evict_lru(cache: &DashMap<Vec<usize>, (usize, Vec<usize>, u32)>, removecount: usize) {
+pub fn evict_lru(cache: &DashMap<Vec<usize>, (usize, Vec<usize>, u32)>, removecount: usize, size: &AtomicUsize) {
     //make a vec of the cache's use times
     let mut counts : Vec<u32> = cache
         .iter()
@@ -26,4 +27,5 @@ fn evict_lru(cache: &DashMap<Vec<usize>, (usize, Vec<usize>, u32)>, removecount:
     //might be better way to do these last 2 lines ^expensive
     //and retain all items that are used after the cutoff
     cache.retain(|_key, value| value.2 > cutoff);
+    size.store(cache.len(), Relaxed);
 }
