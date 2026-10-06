@@ -45,6 +45,7 @@ use crate::{
     pathway::Pathway,
     state::State,
     utils::connected_components_under_edges,
+    memoize_quick::Cache as QuickCache,
 };
 
 /// Parallelization strategy for the recursive search phase.

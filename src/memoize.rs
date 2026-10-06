@@ -5,6 +5,8 @@ use std::sync::{
     Arc,
 };
 
+use std::time::Instant;
+
 use bit_set::BitSet;
 use clap::ValueEnum;
 use dashmap::DashMap;
@@ -13,7 +15,7 @@ use crate::{
     canonize::{canonize, CanonizeMode, Labeling},
     molecule::Molecule,
     state::State,
-    eviction::{evict, CACHE_LIMIT, USE_THRESHOLD},
+    eviction::{evict, evict_lru, REMOVE_SIZE, CACHE_LIMIT, USE_THRESHOLD},
 };
 
 /// Strategy for memoizing assembly states in the search phase.
@@ -54,6 +56,10 @@ pub struct Cache {
 
     //EDIT: eviction tracking
     is_evicting: Arc<AtomicBool>,
+
+    //EDIT: clock :)
+    clock: Instant,
+
 }
 
 impl Cache {
@@ -68,6 +74,7 @@ impl Cache {
             next_id: Arc::new(AtomicUsize::from(0)),
             size: Arc::new(AtomicUsize::new(0)), //size-initialization
             is_evicting: Arc::new(AtomicBool::new(false)), //eviction-initialization
+            clock: Instant::now()
         }
     }
 
@@ -152,6 +159,55 @@ impl Cache {
                 .or_insert_with(|| {
                     self.size.fetch_add(1, Relaxed); //EDIT
                     (state_index, removal_order.clone(), 1)}); //EDIT
+        }
+
+        result
+    }
+
+    /// Return `true` iff memoization is enabled and this assembly state is
+    /// preempted by a cached assembly state. See
+    /// <https://github.com/DaymudeLab/assembly-theory/pull/95> for details.
+    pub fn memoize_state_lru(&mut self, mol: &Molecule, state: &State) -> bool {
+        let state_index = state.index();
+        let removal_order = state.removal_order();
+        let mut result = false;
+        let stamp = self.clock.elapsed().as_nanos() as u32;
+        //should prob upgrade to bigger than u32
+
+        // If memoization is enabled, get this assembly state's cache key.
+        if let Some(cache_key) = self.key(mol, state) {
+            //EDIT: check cache bounds first
+            //if !self.cache.contains_key(&cache_key) && should_evict(&self.cache, CACHE_LIMIT) {
+            //    evict(&self.cache, USE_THRESHOLD);
+            //}
+            let current_size = self.size.load(Relaxed);
+            if !self.cache.contains_key(&cache_key) && current_size >= CACHE_LIMIT {
+                if self.is_evicting.compare_exchange(false, true, Acquire, Relaxed).is_ok() {
+                    evict_lru(&self.cache, REMOVE_SIZE, &self.size);
+                    self.is_evicting.store(false, Release);
+                }
+            }
+
+            // Do all of the following atomically: Access the cache entry. If
+            // the cached entry has a worse index upper bound or later removal
+            // order than this state, or if it does not exist, then cache this
+            // state's values and return `false`. Otherwise, the cached entry
+            // preempts this assembly state, so return `true`.
+            self.cache
+                .entry(cache_key)
+                .and_modify(|val| {
+                    if val.0 > state_index || val.1 > *removal_order {
+                        val.0 = state_index;
+                        val.1 = removal_order.clone();
+                        val.2 = stamp; //EDIT
+                    } else {
+                        val.2 = stamp; //EDIT
+                        result = true;
+                    }
+                })
+                .or_insert_with(|| {
+                    self.size.fetch_add(1, Relaxed); //EDIT
+                    (state_index, removal_order.clone(), stamp)}); //EDIT
         }
 
         result

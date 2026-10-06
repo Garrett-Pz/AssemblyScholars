@@ -21,6 +21,9 @@ nauty-Traces-sys = "0.11.0"
 bitvec = "1.0.1"
 tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread", "sync", "time"] }
 
+#EDIT: Add quick_cache
+quick_cache = "0.7"
+
 [dev-dependencies]
 criterion = "0.8.2"
 
