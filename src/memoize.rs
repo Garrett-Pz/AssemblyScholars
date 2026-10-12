@@ -1,13 +1,13 @@
 //! Memoize assembly states to avoid redundant recursive search.
 
 use std::sync::{
-    atomic::{AtomicUsize, Ordering::Relaxed},
+    atomic::{AtomicUsize, Ordering::{Relaxed}},
     Arc,
 };
 
 use bit_set::BitSet;
 use clap::ValueEnum;
-use dashmap::DashMap;
+use quick_cache::sync::{Cache as QuickCache, EntryAction, EntryResult};
 
 use crate::{
     canonize::{canonize, CanonizeMode, Labeling},
@@ -34,15 +34,16 @@ pub struct Cache {
     canonize_mode: CanonizeMode,
     /// A parallel-aware cache mapping keys (lists of usize canonical IDs) to
     /// their assembly index upper bounds and match removal order.
+    //EDIT: add usage count to cache value
     #[allow(clippy::type_complexity)]
-    cache: Arc<DashMap<Vec<usize>, (usize, Vec<usize>)>>,
+    cache: Arc<QuickCache<Vec<usize>, (usize, Vec<usize>)>>,
     /// A parallel-aware map from canonical labelings to canonical IDs. Lists
     /// of these IDs are used as memoization cache keys since usizes are much
     /// faster to hash than canonical labelings.
-    labeling_to_id: Arc<DashMap<Labeling, usize>>,
+    labeling_to_id: Arc<QuickCache<Labeling, usize>>,
     /// A parallel-aware map from fragments to canonical IDs. Two fragments
     /// have the same canonical ID iff they are isomorphic.
-    fragment_to_id: Arc<DashMap<BitSet, usize>>,
+    fragment_to_id: Arc<QuickCache<BitSet, usize>>,
     /// A parallel-aware counter for assigning a unique ID to the next unique
     /// canonical labeling seen.
     next_id: Arc<AtomicUsize>,
@@ -54,9 +55,9 @@ impl Cache {
         Self {
             memoize_mode,
             canonize_mode,
-            cache: Arc::new(DashMap::<Vec<usize>, (usize, Vec<usize>)>::new()),
-            labeling_to_id: Arc::new(DashMap::<Labeling, usize>::new()),
-            fragment_to_id: Arc::new(DashMap::<BitSet, usize>::new()),
+            cache: Arc::new(QuickCache::new(usize::MAX)),
+            labeling_to_id: Arc::new(QuickCache::new(usize::MAX)),
+            fragment_to_id: Arc::new(QuickCache::new(usize::MAX)),
             next_id: Arc::new(AtomicUsize::from(0)),
         }
     }
@@ -85,12 +86,12 @@ impl Cache {
     /// specified [`CanonizeMode`] if this has not already been done.
     fn canonical_id(&mut self, mol: &Molecule, fragment: &BitSet) -> usize {
         if let Some(id) = self.fragment_to_id.get(fragment) {
-            *id
+            id
         } else {
             let labeling = canonize(mol, fragment, self.canonize_mode);
             if let Some(id) = self.labeling_to_id.get(&labeling) {
-                self.fragment_to_id.insert(fragment.clone(), *id);
-                *id
+                self.fragment_to_id.insert(fragment.clone(), id);
+                id
             } else {
                 let id = self.next_id.fetch_add(1, Relaxed);
                 self.fragment_to_id.insert(fragment.clone(), id);
@@ -110,24 +111,34 @@ impl Cache {
 
         // If memoization is enabled, get this assembly state's cache key.
         if let Some(cache_key) = self.key(mol, state) {
-            // Do all of the following atomically: Access the cache entry. If
-            // the cached entry has a worse index upper bound or later removal
-            // order than this state, or if it does not exist, then cache this
-            // state's values and return `false`. Otherwise, the cached entry
-            // preempts this assembly state, so return `true`.
-            self.cache
-                .entry(cache_key)
-                .and_modify(|val| {
-                    if val.0 > state_index || val.1 > *removal_order {
-                        val.0 = state_index;
-                        val.1 = removal_order.clone();
-                    } else {
-                        result = true;
-                    }
-                })
-                .or_insert_with(|| (state_index, removal_order.clone()));
-        }
+            let hold = self.cache.entry(&cache_key, None, |_k, val| {
+                if val.0 > state_index || val.1 > *removal_order {
+                    val.0 = state_index;
+                    val.1 = removal_order.clone();
+                }
+                else {
+                    result = true;
+                }
+                EntryAction::Retain(())
+            });
 
+            if let EntryResult::Vacant(guard) = hold {
+                let _ = guard.insert((state_index, removal_order.clone()));
+            }
+        }
         result
     }
+
+    //just print the cache for debugging
+    //BROKEN ON QUICKCACHE-ALL
+    /* 
+    pub fn print_cache(&self) {
+        let mut usage_counts: Vec<u32> = self.cache.iter().map(|entry| entry.2).collect();
+        usage_counts.sort_unstable();
+        println!("====================================");
+        println!("Cache size: {}", self.cache.len());
+        println!("Cache usage counts: {:?}", usage_counts);
+        println!("====================================");
+    }
+    */
 }
