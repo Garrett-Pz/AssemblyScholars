@@ -13,6 +13,7 @@ anyhow = "1.0.102"
 bit-set = "0.10.0"
 clap = { version = "4.6.1", features = ["derive"] }
 csv = "1.4.0"
+dhat = "0.3"
 petgraph = "0.8.3"
 pyo3 = { version = "0.29.0", features = ["abi3-py310", "extension-module"]}
 rayon = "1.12.0"
@@ -30,7 +31,9 @@ criterion = "0.8.2"
 [features]
 default = ["python"]
 python = []
-
+#for dhat heap profiling
+dhat-heap = []    #for heap profiling
+dhat-ad-hoc = [] # for adhoc profiling
 [lib]
 name = "assembly_theory"
 path = "src/lib.rs"

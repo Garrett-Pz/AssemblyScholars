@@ -11,6 +11,11 @@ use assembly_theory::{
 };
 use clap::{Args, Parser};
 
+//EDIT: dhat init
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
@@ -81,6 +86,9 @@ struct BoundsGroup {
 }
 
 fn main() -> Result<()> {
+    //EDIT: Start profiling with Dhat
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
     // Parse command line arguments.
     let cli = Cli::parse();
 

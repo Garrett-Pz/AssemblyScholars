@@ -57,7 +57,7 @@ impl Cache {
         Self {
             memoize_mode,
             canonize_mode,
-            cache: Arc::new(QuickCache::new(usize::MAX)),
+            cache: Arc::new(QuickCache::new(100_000)),
             labeling_to_id: Arc::new(DashMap::<Labeling, usize>::new()),
             fragment_to_id: Arc::new(DashMap::<BitSet, usize>::new()),
             next_id: Arc::new(AtomicUsize::from(0)),
