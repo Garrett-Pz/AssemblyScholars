@@ -1,14 +1,14 @@
 //! Memoize assembly states to avoid redundant recursive search.
 
-use std::sync::{
-    atomic::{AtomicUsize, Ordering::{Relaxed}},
-    Arc,
-};
+use std::{sync::{
+    Arc, atomic::{AtomicUsize, Ordering::Relaxed},
+}, usize};
 
 use bit_set::BitSet;
 use clap::ValueEnum;
 use dashmap::DashMap;
 use quick_cache::sync::{Cache as QuickCache, EntryAction, EntryResult};
+use quick_cache::Weighter;
 
 
 use crate::{
@@ -38,7 +38,7 @@ pub struct Cache {
     /// their assembly index upper bounds and match removal order.
     //EDIT: add usage count to cache value
     #[allow(clippy::type_complexity)]
-    cache: Arc<QuickCache<Vec<usize>, (usize, Vec<usize>)>>,
+    cache: Arc<QuickCache<Vec<usize>, (usize, Vec<usize>), ItemWeighter>>,
     /// A parallel-aware map from canonical labelings to canonical IDs. Lists
     /// of these IDs are used as memoization cache keys since usizes are much
     /// faster to hash than canonical labelings.
@@ -51,13 +51,29 @@ pub struct Cache {
     next_id: Arc<AtomicUsize>,
 }
 
+#[derive(Clone)]
+pub struct ItemWeighter;
+
+impl Weighter<Vec<usize>, (usize, Vec<usize>)> for ItemWeighter {
+    fn weight(&self, _key: &Vec<usize>, _value: &(usize, Vec<usize>)) -> u64 {
+        let usize_bytes = std::mem::size_of::<usize>();
+        let key_bytes = _key.len() * usize_bytes;
+        let value_bytes = usize_bytes + _value.1.len() * usize_bytes;
+        let total_bytes = key_bytes + value_bytes;
+        total_bytes as u64
+    }
+}
+
 impl Cache {
     /// Construct a new [`Cache`] with the specified modes.
     pub fn new(memoize_mode: MemoizeMode, canonize_mode: CanonizeMode) -> Self {
+        let max_mem = 10 * 1024 * 1024; //arbitrary limit of 10mb. im not sure what i want here
         Self {
+             
             memoize_mode,
             canonize_mode,
-            cache: Arc::new(QuickCache::new(100_000)),
+            //cache: Arc::new(QuickCache::new(100_000)),
+            cache:Arc::new(QuickCache::with_weighter(100_000, max_mem, ItemWeighter)),
             labeling_to_id: Arc::new(DashMap::<Labeling, usize>::new()),
             fragment_to_id: Arc::new(DashMap::<BitSet, usize>::new()),
             next_id: Arc::new(AtomicUsize::from(0)),
