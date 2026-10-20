@@ -115,7 +115,7 @@ pub fn bench_bounds(c: &mut Criterion) {
                             // Benchmark the search phase.
                             for _ in 0..iters {
                                 let mut cache =
-                                    Cache::new(MemoizeMode::CanonIndex, CanonizeMode::TreeNauty);
+                                    Cache::new(MemoizeMode::CanonIndex, CanonizeMode::TreeNauty, mol);
                                 let best_index = Arc::new(AtomicUsize::from(edge_count - 1));
                                 let start = Instant::now();
                                 recurse_index_search(
@@ -180,7 +180,7 @@ pub fn bench_memoize(c: &mut Criterion) {
 
                             // Benchmark the search phase.
                             for _ in 0..iters {
-                                let mut cache = Cache::new(memoize_mode, canonize_mode);
+                                let mut cache = Cache::new(memoize_mode, canonize_mode, mol);
                                 let best_index = Arc::new(AtomicUsize::from(edge_count - 1));
                                 let start = Instant::now();
                                 recurse_index_search(
@@ -238,7 +238,7 @@ pub fn bench_removal_orders(c: &mut Criterion) {
                             // Benchmark the search phase.
                             for _ in 0..iters {
                                 let mut cache =
-                                    Cache::new(MemoizeMode::CanonIndex, CanonizeMode::TreeNauty);
+                                    Cache::new(MemoizeMode::CanonIndex, CanonizeMode::TreeNauty, mol);
                                 let best_index = Arc::new(AtomicUsize::from(edge_count - 1));
                                 let start = Instant::now();
                                 recurse_index_search(
@@ -301,7 +301,7 @@ pub fn bench_performance(c: &mut Criterion) {
                         // Benchmark the search phase.
                         for _ in 0..iters {
                             let mut cache =
-                                Cache::new(MemoizeMode::CanonIndex, CanonizeMode::TreeNauty);
+                                Cache::new(MemoizeMode::CanonIndex, CanonizeMode::TreeNauty, mol);
                             let best_index = Arc::new(AtomicUsize::from(edge_count - 1));
                             let start = Instant::now();
                             recurse_index_search(

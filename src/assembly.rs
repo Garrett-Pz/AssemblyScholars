@@ -507,7 +507,7 @@ pub fn index_search(
 
     // Create the initial assembly state and memoization cache.
     let state = State::new(mol);
-    let mut cache = Cache::new(memoize_mode, canonize_mode);
+    let mut cache = Cache::new(memoize_mode, canonize_mode, mol);
 
     // Enumerate matches (i.e., pairs of edge-disjoint isomorphic fragments).
     let matches = Matches::new(mol, canonize_mode);
