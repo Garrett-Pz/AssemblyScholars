@@ -53,7 +53,7 @@ pub struct Cache {
 impl Cache {
     /// Construct a new [`Cache`] with the specified modes.
     pub fn new(memoize_mode: MemoizeMode, canonize_mode: CanonizeMode, mol: &Molecule) -> Self {
-        let max_mem = 4 * 1024 * 1024 * 1024; //arbitrary limit of 4gig
+        let max_mem = 10 * 1024 * 1024; //arbitrary limit of 10 MB
         Self {
             memoize_mode,
             canonize_mode,
