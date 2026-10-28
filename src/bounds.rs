@@ -61,6 +61,8 @@ pub enum Bound {
     /// Like `Int`, but uses only matchable edges as computed in
     /// [`crate::matches::Matches::matches_to_remove`].
     MatchableEdges,
+    // Pricing bound impl
+    Pricing,
 }
 
 /// Edge information used in vector addition chain bounds.
@@ -90,6 +92,9 @@ pub(crate) fn state_bounds(
             }
             Bound::VecSmallFrags => {
                 state_index - vec_small_frags_bound(fragments, largest_removed, mol) >= best_index
+            }
+            Bound::Pricing => {       // Pricing bound implementation
+                state_index - pricing_bound(fragments, largest_removed) >= best_index
             }
             _ => false,
         };
@@ -296,4 +301,44 @@ fn usable_edges_bound(matchable_edge_masks: &[Vec<BitSet>], removal_size: usize)
     }
 
     bound.saturating_sub((removal_size as f32).log2().ceil() as usize)
+}
+
+fn pricing_bound(fragments: &[BitSet], largest_removed: usize) -> usize {
+    let n: Vec<usize> = fragments.iter().map(|f| f.count()).collect();
+    let max_n = n.iter().copied().max().unwrap_or(0);
+
+    if max_n == 0 { 
+        return 0;
+    }
+
+    //Calculating p_t
+    let mut p = vec![1.0; max_n + 1];
+    for t in 2..=largest_removed.min(max_n) {
+        let sum_floor: usize = n.iter().map(|&ni| ni / t).sum();
+        if sum_floor > 0 {
+            p[t] = 1.0 / (sum_floor as f64);
+        }
+    }
+
+    //calculating w_t
+    let mut w = vec![0.0; max_n + 1];
+    w[1] = 0.0;
+    for t in 2..=max_n {
+        let mut min_split = f64::INFINITY;
+        for i in 1..=(t/2) {
+            let split_val = w[i] + w[t - i];
+            if split_val < min_split {
+                min_split = split_val;
+            }
+        }
+        w[t] = p[t] + min_split;
+    }
+    
+    //MA lower bound
+    let mut bound = 0.0;
+    for &ni in &n {
+        bound += w[ni];
+    }
+
+    bound.ceil() as usize   
 }
