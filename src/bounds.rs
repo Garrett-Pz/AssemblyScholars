@@ -187,8 +187,10 @@ fn add_chain_bound(fragments: &[BitSet], m: usize) -> usize {
                                 .map(|f| f.count())
                                 .max()
                                 .unwrap_or(0);
-    //p1 is the max of m and the biggest fragment size
+    //p1 is the min of m and the biggest fragment size
     let p1: usize = m.min(fragmax);
+    //return 0 since the proof assumes m >= 2
+    if p1 < 2 {return 0;}
     //p2 is the power of two less than or equal to p1
     //this cool function takes 0d1, and shifts it over the amount of bits in a usize minus the leading zeros in p1! 
     //effectively, the first binary 1 in p1 is kept, and the rest is turned to 0.
@@ -222,7 +224,7 @@ fn ceillog2 (x : usize) -> usize {
         //for non powers of 2, this does x=0bxx1qqq, where qs are real bits
         //subtracting 1 gives x=0bxx1qq0, so the first one is not lost
         //since the leading zero remains, this effectively is a ceiling!
-        return usize::MAX - ((x-1).leading_zeros() as usize);
+        return (usize::BITS - (x-1).leading_zeros()) as usize;
     }
 }
 
