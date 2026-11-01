@@ -89,7 +89,6 @@ pub fn bench_bounds(c: &mut Criterion) {
         (vec![], "no-bounds"),
         (vec![Bound::Log], "log"),
         (vec![Bound::Int], "int"),
-        (vec![Bound::AdditionChain], "addition-chain"),
         (
             vec![Bound::Int, Bound::VecSimple, Bound::VecSmallFrags],
             "int-vec",

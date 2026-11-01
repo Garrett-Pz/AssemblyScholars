@@ -53,8 +53,6 @@ pub enum Bound {
     /// has not been used yet. Thus the number of unique bond types gives
     /// information on how many more joins are required.
     VecSimple,
-
-    AdditionChain,
     /// Considers the fragments of size two in the current fragmentation. In
     /// the remaining top-down process, such fragments will require one step to
     /// remove if there is a duplicate set of two bonds in the graph.
@@ -86,12 +84,9 @@ pub(crate) fn state_bounds(
     for bound_type in bounds {
         let exceeds = match bound_type {
             Bound::Log => state_index - log_bound(fragments) >= best_index,
-            Bound::Int => state_index - int_bound(fragments, largest_removed) >= best_index,
+            Bound::Int => state_index - add_chain_bound(fragments, largest_removed) >= best_index,
             Bound::VecSimple => {
                 state_index - vec_simple_bound(fragments, largest_removed, mol) >= best_index
-            }
-            Bound::AdditionChain => {
-                state_index - add_chain_bound(fragments, largest_removed) >= best_index
             }
             Bound::VecSmallFrags => {
                 state_index - vec_small_frags_bound(fragments, largest_removed, mol) >= best_index
@@ -149,32 +144,6 @@ fn log_bound(fragments: &[BitSet]) -> usize {
     size - (size as f32).log2().ceil() as usize
 }
 
-/// TODO
-fn int_bound(fragments: &[BitSet], m: usize) -> usize {
-    let mut max_s: usize = 0;
-    let mut frag_sizes: Vec<usize> = Vec::new();
-
-    for f in fragments {
-        frag_sizes.push(f.count());
-    }
-
-    let size_sum: usize = frag_sizes.iter().sum();
-
-    // Test for all sizes m of largest removed duplicate
-    for max in 2..m + 1 {
-        let log = (max as f32).log2().ceil();
-        let mut aux_sum: usize = 0;
-
-        for len in &frag_sizes {
-            aux_sum += (len / max) + (len % max != 0) as usize
-        }
-
-        max_s = max_s.max(size_sum - log as usize - aux_sum);
-    }
-
-    max_s
-}
-
 fn add_chain_bound(fragments: &[BitSet], m: usize) -> usize {
     //get the sizes of reach fragment
     let mut fragsizes: Vec<usize> = Vec::new();
@@ -191,41 +160,32 @@ fn add_chain_bound(fragments: &[BitSet], m: usize) -> usize {
     let p1: usize = m.min(fragmax);
     //return 0 since the proof assumes m >= 2
     if p1 < 2 {return 0;}
+
+
+    let ceillog2 = |x| {
+        if x <= 1 {0 as usize}
+        else {
+            (usize::BITS - ((x-1) as usize ).leading_zeros()) as usize
+        }
+    };
+
+    let b = |fragcounts, x| {
+        //return dummy
+        let mut ret : usize = 0;
+        //for size in the fragment sizes,
+        for size in fragcounts {
+            //add the little function guy!
+            ret += ((x-1) * size) / x
+        }
+        //return
+        ret - ceillog2(x)
+    };
+
     //p2 is the power of two less than or equal to p1
-    //this cool function takes 0d1, and shifts it over the amount of bits in a usize minus the leading zeros in p1! 
-    //effectively, the first binary 1 in p1 is kept, and the rest is turned to 0.
     let p2: usize = 1usize << ((usize::BITS - 1) - p1.leading_zeros());
 
     //return max of the two b funcs
     b(&fragsizes, p2).max(b(&fragsizes, p1))
-}
-
-fn b (fragmentcounts: &Vec<usize>, x : usize) -> usize {
-    //return dummy
-    let mut ret : usize = 0;
-    //for size in the fragment sizes,
-    for size in fragmentcounts {
-        //add the little function guy!
-        ret += ((x-1) * size) / x
-    }
-    //return
-    ret - ceillog2(x)
-}
-
-fn ceillog2 (x : usize) -> usize {
-    //if 0 or 1 return 0
-    if x <= 1 {return 0;}
-    //else, 
-    else {
-        //return usize - (x-1)'s leading zeros
-        //this works because for any power of 2, x = 0bxxx1xxx, with only 1 1
-        //when you subtract 1, it turns it into x = 0bxxx0111, with ones equal to the 1's position in the system
-        //the amount of non zero bits is equal to the power
-        //for non powers of 2, this does x=0bxx1qqq, where qs are real bits
-        //subtracting 1 gives x=0bxx1qq0, so the first one is not lost
-        //since the leading zero remains, this effectively is a ceiling!
-        return (usize::BITS - (x-1).leading_zeros()) as usize;
-    }
 }
 
 /// TODO
