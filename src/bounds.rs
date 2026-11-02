@@ -28,6 +28,7 @@
 
 use bit_set::BitSet;
 use clap::ValueEnum;
+use fraction::Fraction;
 
 use crate::{
     molecule::{Bond, Element, Molecule},
@@ -87,14 +88,12 @@ pub(crate) fn state_bounds(
         let exceeds = match bound_type {
             Bound::Log => state_index - log_bound(fragments) >= best_index,
             Bound::Int => state_index - int_bound(fragments, largest_removed) >= best_index,
+            Bound::Pricing => state_index - pricing_bound(fragments, largest_removed) >= best_index,
             Bound::VecSimple => {
                 state_index - vec_simple_bound(fragments, largest_removed, mol) >= best_index
             }
             Bound::VecSmallFrags => {
                 state_index - vec_small_frags_bound(fragments, largest_removed, mol) >= best_index
-            }
-            Bound::Pricing => {       // Pricing bound implementation
-                state_index - pricing_bound(fragments, largest_removed) >= best_index
             }
             _ => false,
         };
@@ -305,27 +304,27 @@ fn usable_edges_bound(matchable_edge_masks: &[Vec<BitSet>], removal_size: usize)
 
 fn pricing_bound(fragments: &[BitSet], largest_removed: usize) -> usize {
     let n: Vec<usize> = fragments.iter().map(|f| f.count()).collect();
-    let max_n = n.iter().copied().max().unwrap_or(0);
+    let max_n = *n.iter().max().unwrap();
 
     if max_n == 0 { 
         return 0;
     }
 
     //Calculating p_t
-    let mut p = vec![1.0; max_n + 1];
+    let mut p = vec![Fraction::from(1); max_n + 1]; //needs fraction
     for t in 2..=largest_removed.min(max_n) {
         let sum_floor: usize = n.iter().map(|&ni| ni / t).sum();
         if sum_floor > 0 {
-            p[t] = 1.0 / (sum_floor as f64);
+            p[t] = Fraction::new(1u64, sum_floor as u64);
         }
     }
 
     //calculating w_t
-    let mut w = vec![0.0; max_n + 1];
-    w[1] = 0.0;
+    let mut w = vec![Fraction::from(0); max_n + 1];
+    w[1] = Fraction::from(0);
     for t in 2..=max_n {
-        let mut min_split = f64::INFINITY;
-        for i in 1..=(t/2) {
+        let mut min_split = Fraction::infinity();
+        for i in 1..=largest_removed.min(t/2) {
             let split_val = w[i] + w[t - i];
             if split_val < min_split {
                 min_split = split_val;
@@ -335,10 +334,18 @@ fn pricing_bound(fragments: &[BitSet], largest_removed: usize) -> usize {
     }
     
     //MA lower bound
-    let mut bound = 0.0;
+    let mut bound = Fraction::from(0);
     for &ni in &n {
         bound += w[ni];
     }
 
-    bound.ceil() as usize   
+    let num = *bound.numer().unwrap() as usize;
+    let denom = *bound.denom().unwrap_or(&1) as usize;
+    let bound_ceil = (num + denom - 1) / denom;
+
+    //savings upper bound
+    let total_edges: usize = n.iter().sum();
+    let num_frags = n.len();
+    let savings_bound = total_edges - num_frags - bound_ceil;
+    savings_bound
 }

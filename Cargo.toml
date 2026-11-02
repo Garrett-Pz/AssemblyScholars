@@ -20,6 +20,7 @@ dashmap = "6.2.1"
 nauty-Traces-sys = "0.11.0"
 bitvec = "1.0.1"
 tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread", "sync", "time"] }
+fraction = "0.17.0"
 
 [dev-dependencies]
 criterion = "0.8.2"

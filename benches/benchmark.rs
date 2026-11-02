@@ -89,11 +89,13 @@ pub fn bench_bounds(c: &mut Criterion) {
         (vec![], "no-bounds"),
         (vec![Bound::Log], "log"),
         (vec![Bound::Int], "int"),
+        (vec![Bound::Pricing], "pricing"),
         (
             vec![Bound::Int, Bound::VecSimple, Bound::VecSmallFrags],
             "int-vec",
         ),
         (vec![Bound::Int, Bound::MatchableEdges], "int-matchable"),
+        (vec![Bound::Int, Bound::Pricing, Bound::MatchableEdges], "int-pricing-matchable"),
     ];
 
     // Run the benchmark for each dataset and bound list.
@@ -309,7 +311,7 @@ pub fn bench_performance(c: &mut Criterion) {
                                 &matches,
                                 &state,
                                 best_index,
-                                &[Bound::Int, Bound::MatchableEdges],
+                                &[Bound::Int, Bound::Pricing, Bound::MatchableEdges],
                                 &mut cache,
                                 ParallelMode::DepthOne,
                                 None,
