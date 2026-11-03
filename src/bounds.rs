@@ -331,12 +331,28 @@ fn pricing_bound(fragments: &[BitSet], largest_removed: usize) -> usize {
         return 0;
     }
 
+    //distinct n_i optmization
+    let mut distinct_n = vec![false; max_n + 1];
+    let mut total_distinct_n_le_m= 0;
+    for &ni in &n {
+        if ni <= largest_removed && ni > 1 && !distinct_n[ni] {
+            distinct_n[ni] = true;
+            total_distinct_n_le_m += 1;
+        }
+    }
+
+
     //Calculating p_t
-    let mut p = vec![Fraction::from(1); max_n + 1]; //needs fraction
+    let mut p = vec![Fraction::from(1); max_n + 1];
     for t in 2..=largest_removed.min(max_n) {
-        let sum_floor: usize = n.iter().map(|&ni| ni / t).sum();
-        if sum_floor > 0 {
-            p[t] = Fraction::new(1u64, sum_floor as u64);
+        // distinct ni optimization
+        if distinct_n[t] {
+            p[t] = Fraction::from(0)
+        } else {
+            let sum_floor: usize = n.iter().map(|&ni| ni / t).sum();
+            if sum_floor > 0 {
+                p[t] = Fraction::new(1u64, sum_floor as u64);
+            }
         }
     }
 
@@ -355,7 +371,8 @@ fn pricing_bound(fragments: &[BitSet], largest_removed: usize) -> usize {
     }
     
     //MA lower bound
-    let mut bound = Fraction::from(0);
+    //bound changed from 0 to #total_distinct_ni_le_m
+    let mut bound = Fraction::from(total_distinct_n_le_m as u64);
     for &ni in &n {
         bound += w[ni];
     }
