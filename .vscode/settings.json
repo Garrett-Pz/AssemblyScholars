@@ -1,0 +1,5 @@
+{
+    "terminal.integrated.env.osx": {
+        "RUSTFLAGS": "-C link-arg=-undefined -C link-arg=dynamic_lookup"
+    }
+}

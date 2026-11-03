@@ -31,10 +31,10 @@ use clap::ValueEnum;
 use fraction::Fraction;
 
 use crate::{
-    molecule::{Bond, Element, Molecule},
-    state::State,
+    molecule::{Bond, Element, Molecule}, state::State,
 };
 
+use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 /// State and match bounds to prune assembly index search.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum Bound {
@@ -65,6 +65,27 @@ pub enum Bound {
     // Pricing bound impl
     Pricing,
 }
+
+//sweeping constants
+pub static M_BOUND : AtomicUsize = AtomicUsize::new(0);
+pub static PROX_BOUND : AtomicUsize = AtomicUsize::new(0);
+
+pub fn set_m(value : usize) {
+    M_BOUND.store(value, Relaxed);
+}
+
+pub fn get_m() -> usize {
+    M_BOUND.load(Relaxed)
+}
+
+pub fn set_prox(value : usize) {
+    PROX_BOUND.store(value, Relaxed);
+}
+
+pub fn get_prox() {
+    PROX_BOUND.load(Relaxed);
+}
+
 
 /// Edge information used in vector addition chain bounds.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]

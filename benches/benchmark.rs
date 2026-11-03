@@ -10,7 +10,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
 use assembly_theory::{
     assembly::{recurse_index_search, ParallelMode},
-    bounds::Bound,
+    bounds::{Bound, get_m, set_m, get_prox, set_prox},
     canonize::CanonizeMode,
     loader::parse_molfile_str,
     matches::Matches,
