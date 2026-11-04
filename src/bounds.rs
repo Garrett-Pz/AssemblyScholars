@@ -64,26 +64,27 @@ pub enum Bound {
     MatchableEdges,
     // Pricing bound impl
     Pricing,
+    IntPricing,
 }
 
 //sweeping constants
-pub static M_BOUND : AtomicUsize = AtomicUsize::new(0);
-pub static PROX_BOUND : AtomicUsize = AtomicUsize::new(0);
+pub static M_LOWER_BOUND : AtomicUsize = AtomicUsize::new(0);
+pub static PROX_UPPER_BOUND : AtomicUsize = AtomicUsize::new(0);
 
 pub fn set_m(value : usize) {
-    M_BOUND.store(value, Relaxed);
+    M_LOWER_BOUND.store(value, Relaxed);
 }
 
 pub fn get_m() -> usize {
-    M_BOUND.load(Relaxed)
+    M_LOWER_BOUND.load(Relaxed)
 }
 
 pub fn set_prox(value : usize) {
-    PROX_BOUND.store(value, Relaxed);
+    PROX_UPPER_BOUND.store(value, Relaxed);
 }
 
-pub fn get_prox() {
-    PROX_BOUND.load(Relaxed);
+pub fn get_prox()-> usize {
+    PROX_UPPER_BOUND.load(Relaxed)
 }
 
 
@@ -110,6 +111,16 @@ pub(crate) fn state_bounds(
             Bound::Log => state_index - log_bound(fragments) >= best_index,
             Bound::Int => state_index - int_bound(fragments, largest_removed) >= best_index,
             Bound::Pricing => state_index - pricing_bound(fragments, largest_removed) >= best_index,
+            Bound::IntPricing => {
+                if largest_removed < get_m() {
+                    let intbound = state_index - int_bound(fragments, largest_removed);
+                    if intbound >= best_index {return true;}
+                    if (best_index-intbound) < get_prox() {
+                        return state_index - pricing_bound(fragments, largest_removed) >= best_index;
+                    }
+                }
+                state_index - pricing_bound(fragments, largest_removed) >= best_index
+            }
             Bound::VecSimple => {
                 state_index - vec_simple_bound(fragments, largest_removed, mol) >= best_index
             }
