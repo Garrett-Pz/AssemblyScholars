@@ -114,9 +114,8 @@ pub(crate) fn state_bounds(
             Bound::IntPricing => {
                 if largest_removed < get_m() {
                     let intbound = state_index - int_bound(fragments, largest_removed);
-                    if intbound >= best_index {return true;}
-                    if (best_index-intbound) < get_prox() {
-                        return state_index - pricing_bound(fragments, largest_removed) >= best_index;
+                    if (best_index-intbound) > get_prox() {
+                        return intbound >= best_index;
                     }
                 }
                 state_index - pricing_bound(fragments, largest_removed) >= best_index

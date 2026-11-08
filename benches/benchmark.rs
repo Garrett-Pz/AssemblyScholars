@@ -329,7 +329,7 @@ pub fn bench_performance(c: &mut Criterion) {
 }
 
 
-pub fn bench_bounds_full_factorial(c: &mut Criterion) {
+pub fn bench_pricing_ff(c: &mut Criterion) {
     let mut bench_group = c.benchmark_group("bench_bounds_full_factorial");
 
     // Define datasets.
@@ -346,12 +346,10 @@ pub fn bench_bounds_full_factorial(c: &mut Criterion) {
         // "polycyclic_hydrocarbons",
     ];
     
-    for m in 2..10 {
+    for m in 2..5 {
         set_m(m);
-        for prox in 1..10 {
+        for prox in 1..4 {
             set_prox(prox);
-
-
                 // Run the benchmark for each dataset.
                 for dataset in &datasets {
                     let mol_list = load_dataset_molecules(dataset);
@@ -399,6 +397,6 @@ pub fn bench_bounds_full_factorial(c: &mut Criterion) {
 criterion_group! {
     name = benchmark;
     config = Criterion::default().sample_size(20);
-    targets = bench_matches, bench_bounds, bench_memoize, bench_removal_orders, bench_performance, bench_bounds_full_factorial
+    targets = bench_matches, bench_bounds, bench_memoize, bench_removal_orders, bench_performance, bench_pricing_ff
 }
 criterion_main!(benchmark);
